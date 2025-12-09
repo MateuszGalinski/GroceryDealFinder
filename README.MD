@@ -1,0 +1,1 @@
+Pamięajcie o gitignorach
