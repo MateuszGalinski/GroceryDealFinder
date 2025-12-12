@@ -5,6 +5,13 @@ from rest_framework import status
 
 from .serializers import (
     RegisterSerializer,
+    GlossarySerializer,
+    ProductSerializer
+)
+
+from .models import (
+    Product,
+    Glossary
 )
 
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -15,15 +22,32 @@ class ShoppingPriceCalculator(APIView):
     def post(self, request, format = None):
         return Response('shopping list')
     
-class Glossary(APIView):
+class GlossaryView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, format = None):
-        return Response('your glossary')
-    
-    def put(self, request, format = None):
-        return Response('glossary updated')
+    def get(self, request, format=None):
+        try:
+            glossary = Glossary.objects.get(user=request.user)
+            serializer = GlossarySerializer(glossary)
+            return Response(serializer.data)
+        except Glossary.DoesNotExist:
+            return Response(
+                {'translations': {}},
+                status=status.HTTP_200_OK
+            )
+
+    def put(self, request, format=None):
+        try:
+            glossary = Glossary.objects.get(user=request.user)
+            serializer = GlossarySerializer(glossary, data=request.data, partial=True)
+        except Glossary.DoesNotExist:
+            serializer = GlossarySerializer(data=request.data)
+
+        if serializer.is_valid():
+            serializer.save(user=request.user)
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 # LOGIN/REGISTER ENDPOINTS
 def get_token_for_user(user):

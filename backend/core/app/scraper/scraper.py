@@ -236,14 +236,5 @@ def get_shops_data():
 if __name__ == "__main__":
     # session = requests.Session()
     # call_auchan_api(*auchan_init(session))
-    # with open("data.json", "w") as fp:
-    #     fp.write(json.dumps(get_shops_data()))
-    
-    # shops_data = get_shops_data()
-    # print(shops_data)
-    # print(type(shops_data))
-
-    with open('data.json') as file:
-       data =file.read()
-
-    print(data["Biedronka"])   
+    with open("data.json", "w") as fp:
+        fp.write(json.dumps(get_shops_data()))

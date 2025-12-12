@@ -1,16 +1,10 @@
 from django.contrib import admin
-from .models import Product, Disscount, Glossary
+from .models import Product, Glossary
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "url", "price")
-    search_fields = ("name",)
-
-
-@admin.register(Disscount)
-class DiscountAdmin(admin.ModelAdmin):
-    list_display = ("id", "product", "discounted_price", "old_price")
-    search_fields = ("product__name",)
+    list_display = ("id", "name", "url", "price", "shop")
+    search_fields = ("name","shop",)
 
 
 @admin.register(Glossary)

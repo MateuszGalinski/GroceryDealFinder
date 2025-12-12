@@ -77,10 +77,14 @@ CELERY_BROKER_URL = "redis://localhost:6379"
 CELERY_RESULT_BACKEND = "redis://localhost:6379"
 
 CELERY_BEAT_SCHEDULE = {
-    'debug-every-20-sec': {
-        'task': 'app.tasks.debug_task',
-        'schedule': 20,
-    },
+    # 'debug-every-20-sec': {
+    #     'task': 'app.tasks.debug_task',
+    #     'schedule': 20,
+    # },
+    'update_discount_database': {
+        'task': 'app.tasks.update_discount_database',
+        'schedule': 60 * 5 # 5 minutes
+    }
 }
 
 # Database
