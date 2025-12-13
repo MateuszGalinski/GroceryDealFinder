@@ -6,6 +6,7 @@ from rest_framework_simplejwt.views import (
 )
 
 urlpatterns = [
+    path('products/', ProductView.as_view(), name='products'),
     path('glossary/', GlossaryView.as_view(), name='glossary'),
     path('generate-list/', ShoppingPriceCalculator.as_view(), name='generate-list'),
     path('login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
