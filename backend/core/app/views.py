@@ -1,4 +1,4 @@
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
@@ -19,26 +19,44 @@ from .models import (
 import re
 from collections import defaultdict
 
-def parse_price(price_str):
-    """Extract numeric price from string like '15.99 /szt.'"""
-    if not price_str:
-        return None
-    try:
-        match = re.search(r'[\d,\.]+', price_str)
-        if match:
-            return float(match.group().replace(',', '.'))
-    except (ValueError, AttributeError):
-        return None
-    return None
-
-def get_product_price(product):
-    """Get the effective price (discounted if available)"""
-    if product.is_discounted and product.discounted_price:
-        return parse_price(product.discounted_price)
-    return parse_price(product.price)
 
 # CORE LOGIC ENDPOINTS
 class ShoppingPriceCalculator(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [AllowAny]
+
+    def get_user_glossary(self, user) -> dict:
+        """Get user's glossary translations or empty dict"""
+        if not user.is_authenticated:
+            return {}
+        try:
+            glossary = Glossary.objects.get(user=user)
+            return glossary.translations or {}
+        except Glossary.DoesNotExist:
+            return {}
+
+    def translate_item(self, item : str, glossary : dict):
+        """Translate item using glossary, return original if not found"""
+        return glossary.get(item, item)
+    
+    def parse_price(self, price_str):
+        """Extract numeric price from string like '15.99 /szt.'"""
+        if not price_str:
+            return None
+        try:
+            match = re.search(r'[\d,\.]+', price_str)
+            if match:
+                return float(match.group().replace(',', '.'))
+        except (ValueError, AttributeError):
+            return None
+        return None
+
+    def get_product_price(self, product):
+        """Get the effective price (discounted if available)"""
+        if product.is_discounted and product.discounted_price:
+            return self.parse_price(product.discounted_price)
+        return self.parse_price(product.price)
+    
     def post(self, request, format=None):
         '''
         Docstring for post
@@ -59,6 +77,9 @@ class ShoppingPriceCalculator(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        # Get user's glossary (empty if not authenticated)
+        glossary = self.get_user_glossary(request.user)
+        
         # Get all unique shops
         all_shops = Product.objects.values_list('shop', flat=True).distinct()
         
@@ -69,10 +90,13 @@ class ShoppingPriceCalculator(APIView):
             shop_complete = True
             
             for item in shopping_list:
+                # Translate item using glossary
+                search_term = self.translate_item(item, glossary)
+                
                 # Find cheapest matching product in this shop
                 matching = Product.objects.filter(
                     shop=shop,
-                    name__icontains=item
+                    name__icontains=search_term
                 )
                 
                 if not matching.exists():
@@ -84,7 +108,7 @@ class ShoppingPriceCalculator(APIView):
                 cheapest_price = float('inf')
                 
                 for product in matching:
-                    price = get_product_price(product)
+                    price = self.get_product_price(product)
                     if price and price < cheapest_price:
                         cheapest = product
                         cheapest_price = price
@@ -94,7 +118,8 @@ class ShoppingPriceCalculator(APIView):
                     break
                 
                 shop_products.append({
-                    'searched_term': item,
+                    'original_term': item,
+                    'searched_term': search_term,
                     'name': cheapest.name,
                     'price': cheapest_price,
                     'is_discounted': cheapest.is_discounted,

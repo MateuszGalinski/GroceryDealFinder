@@ -3,7 +3,7 @@ from .models import Product, Glossary
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "url", "price", "shop")
+    list_display = ("id", "name", "url", "price", "discounted_price", "shop")
     list_filter = ["shop"]
     search_fields = ("name","shop",)
 
