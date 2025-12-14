@@ -4,23 +4,22 @@ from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from drf_spectacular.utils import extend_schema, OpenApiExample
 
 from .serializers import (
     RegisterSerializer,
     GlossarySerializer,
-    ProductSerializer
+    ProductSerializer,
+    ShoppingListRequestSerializer,
+    ShoppingPriceResponseSerializer,
+    RegisterResponseSerializer,
+    ErrorSerializer,
 )
-
-from .models import (
-    Product,
-    Glossary
-)
+from .models import Product, Glossary
 
 import re
-from collections import defaultdict
 
 
-# CORE LOGIC ENDPOINTS
 class ShoppingPriceCalculator(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [AllowAny]
@@ -35,10 +34,10 @@ class ShoppingPriceCalculator(APIView):
         except Glossary.DoesNotExist:
             return {}
 
-    def translate_item(self, item : str, glossary : dict):
+    def translate_item(self, item: str, glossary: dict):
         """Translate item using glossary, return original if not found"""
         return glossary.get(item, item)
-    
+
     def parse_price(self, price_str):
         """Extract numeric price from string like '15.99 /szt.'"""
         if not price_str:
@@ -56,67 +55,77 @@ class ShoppingPriceCalculator(APIView):
         if product.is_discounted and product.discounted_price:
             return self.parse_price(product.discounted_price)
         return self.parse_price(product.price)
-    
+
+    @extend_schema(
+        summary="Calculate shopping prices across shops",
+        description="Finds the cheapest shop that has all requested products. "
+                    "Uses user's glossary for term translation if authenticated.",
+        request=ShoppingListRequestSerializer,
+        responses={
+            200: ShoppingPriceResponseSerializer,
+            400: ErrorSerializer,
+        },
+        examples=[
+            OpenApiExample(
+                "Example shopping list",
+                value={
+                    "products": ['kiełbasa', 'jajka']
+                },
+                request_only=True,
+            )
+        ]
+
+    )
     def post(self, request, format=None):
-        '''
-        Docstring for post
-        
-        :param self: Description
-        :param request: request in form
-            {
-                "products": ["item_name1", "item_name2", ...]
-            }
-            where item_name is string
-        :param format: Description
-        '''
-        shopping_list = request.data.get('products', [])
-        
+        serializer = ShoppingListRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {'error': 'Invalid request data'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        shopping_list = serializer.validated_data['products']
+
         if not shopping_list:
             return Response(
                 {'error': 'No products provided'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
-        # Get user's glossary (empty if not authenticated)
+
         glossary = self.get_user_glossary(request.user)
-        
-        # Get all unique shops
         all_shops = Product.objects.values_list('shop', flat=True).distinct()
-        
+
         shop_results = {}
-        
+
         for shop in all_shops:
             shop_products = []
             shop_complete = True
-            
+
             for item in shopping_list:
-                # Translate item using glossary
                 search_term = self.translate_item(item, glossary)
-                
-                # Find cheapest matching product in this shop
+
                 matching = Product.objects.filter(
                     shop=shop,
                     name__icontains=search_term
                 )
-                
+
                 if not matching.exists():
                     shop_complete = False
                     break
-                
-                # Get the cheapest option for this item
+
                 cheapest = None
                 cheapest_price = float('inf')
-                
+
                 for product in matching:
                     price = self.get_product_price(product)
                     if price and price < cheapest_price:
                         cheapest = product
                         cheapest_price = price
-                
+
                 if not cheapest:
                     shop_complete = False
                     break
-                
+
                 shop_products.append({
                     'original_term': item,
                     'searched_term': search_term,
@@ -125,16 +134,14 @@ class ShoppingPriceCalculator(APIView):
                     'is_discounted': cheapest.is_discounted,
                     'url': cheapest.url,
                 })
-            
-            # Only include shop if it has ALL items
+
             if shop_complete and shop_products:
                 total = round(sum(p['price'] for p in shop_products), 2)
                 shop_results[shop] = {
                     'products': shop_products,
                     'total': total
                 }
-        
-        # Find cheapest complete shop
+
         cheapest = None
         if shop_results:
             cheapest_entry = min(shop_results.items(), key=lambda x: x[1]['total'])
@@ -143,24 +150,35 @@ class ShoppingPriceCalculator(APIView):
                 'total': cheapest_entry[1]['total'],
                 'products': cheapest_entry[1]['products']
             }
-        
+
         return Response({
             'shopping_list': shopping_list,
             'complete_shops': shop_results,
             'cheapest': cheapest,
             'shops_compared': len(shop_results)
         })
-    
+
+
 class ProductView(APIView):
+    @extend_schema(
+        summary="List all products",
+        responses={200: ProductSerializer(many=True)}
+    )
     def get(self, request, format=None):
         products = Product.objects.all()
         serializer = ProductSerializer(products, many=True)
         return Response(serializer.data)
-    
+
+
 class GlossaryView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Get user's glossary",
+        responses={200: GlossarySerializer},
+        
+    )
     def get(self, request, format=None):
         try:
             glossary = Glossary.objects.get(user=request.user)
@@ -172,6 +190,23 @@ class GlossaryView(APIView):
                 status=status.HTTP_200_OK
             )
 
+    @extend_schema(
+        summary="Update user's glossary",
+        request=GlossarySerializer,
+        responses={200: GlossarySerializer},
+        examples=[
+            OpenApiExample(
+                "Example glossary",
+                value={
+                    "translations": {
+                        "mleko": "mleko 2%",
+                        "chleb": "chleb pszenny"
+                    }
+                },
+                request_only=True,
+            )
+        ]
+    )
     def put(self, request, format=None):
         try:
             glossary = Glossary.objects.get(user=request.user)
@@ -183,8 +218,8 @@ class GlossaryView(APIView):
             serializer.save(user=request.user)
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-# LOGIN/REGISTER ENDPOINTS
+
+
 def get_token_for_user(user):
     refresh = RefreshToken.for_user(user)
     return {
@@ -192,7 +227,16 @@ def get_token_for_user(user):
         "access": str(refresh.access_token),
     }
 
+
 class RegisterView(APIView):
+    @extend_schema(
+        summary="Register a new user",
+        request=RegisterSerializer,
+        responses={
+            201: RegisterResponseSerializer,
+            400: ErrorSerializer,
+        }
+    )
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
 
