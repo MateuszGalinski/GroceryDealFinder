@@ -76,25 +76,13 @@ export default function SignIn() {
   const [usernameErrorMessage, setUsernameErrorMessage] = useState("");
   const [passwordError, setPasswordError] = useState(false);
   const [passwordErrorMessage, setPasswordErrorMessage] = useState("");
-  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState(false);
   const navigate = useNavigate();
 
-  //   if (localStorage.getItem("accessToken")) {
-  //     return <Navigate to={"/"} />;
-  //   }
-  if (localStorage.getItem("username") && localStorage.getItem("password")) {
+  if (localStorage.getItem("accessToken")) {
     return <Navigate to={"/"} />;
   }
-
-  const handleClickOpen = () => {
-    setOpen(true);
-  };
-
-  const handleClose = () => {
-    setOpen(false);
-  };
 
   const handleSubmitWithAPI = async (
     event: React.FormEvent<HTMLFormElement>,
@@ -117,31 +105,15 @@ export default function SignIn() {
       const response = await axiosClient.post("/login/", requestBody);
 
       const accessToken: string = response.data["access"];
-      const username: string = response.data["user"]["username"];
+      const refreshToken: string = response.data["refresh"];
 
       localStorage.setItem("accessToken", accessToken);
-      localStorage.setItem("username", username);
+      localStorage.setItem("refreshToken", refreshToken);
       navigate("/");
     } catch (err) {
       setLoading(false);
       setLoginError(true);
     }
-  };
-
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (usernameError || passwordError) {
-      return;
-    }
-
-    const data = new FormData(event.currentTarget);
-    const username = data.get("username") as string;
-    const password = data.get("password") as string;
-
-    localStorage.setItem("username", username);
-    localStorage.setItem("password", password);
-    navigate("/");
   };
 
   const validateInputs = () => {
@@ -189,7 +161,7 @@ export default function SignIn() {
           </Typography>
           <Box
             component="form"
-            onSubmit={handleSubmit}
+            onSubmit={handleSubmitWithAPI}
             noValidate
             sx={{
               display: "flex",
@@ -244,15 +216,6 @@ export default function SignIn() {
             >
               Sign in
             </Button>
-            {/* <Link
-              component="button"
-              type="button"
-              onClick={handleClickOpen}
-              variant="body2"
-              sx={{ alignSelf: "center" }}
-            >
-              Forgot your password?
-            </Link> */}
             <Typography sx={{ textAlign: "center" }}>
               Don't have an account?{" "}
               <Link href="/register" variant="body2">

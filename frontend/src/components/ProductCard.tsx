@@ -29,25 +29,18 @@ export default function ProductCard({ product }: { product: Product }) {
             <Chip label="On Sale" color="error" size="small" />
           )}
         </Box>
+        {product.searched_term !== product.original_term && (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Searched for: {product.original_term}
+          </Typography>
+        )}
         <Box sx={{ mt: 2 }}>
-          {product.is_discounted ? (
-            <Box>
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{ textDecoration: "line-through" }}
-              >
-                ${product.price.toFixed(2)}
-              </Typography>
-              <Typography variant="h6" color="error">
-                ${product.discounted_price?.toFixed(2)}
-              </Typography>
-            </Box>
-          ) : (
-            <Typography variant="h6" color="primary">
-              ${product.price.toFixed(2)}
-            </Typography>
-          )}
+          <Typography
+            variant="h6"
+            color={product.is_discounted ? "error" : "primary"}
+          >
+            {product.price.toFixed(2)} zł
+          </Typography>
         </Box>
       </CardContent>
       <CardActions>
