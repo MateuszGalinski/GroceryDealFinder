@@ -1,6 +1,6 @@
 import requests
 import pytesseract
-# from env import TESSERACT_DIR
+from env import TESSERACT_DIR
 from PIL import Image
 import os
 from typing import Union, TypedDict, Callable

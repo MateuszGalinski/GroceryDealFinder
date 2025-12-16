@@ -1,24 +1,62 @@
 import requests
 import pytesseract
-# from env import TESSERACT_DIR
+from env import TESSERACT_DIR
 from PIL import Image
 import os
-from typing import Union, TypedDict
+from typing import Union, TypedDict, Callable
 import json
 from bs4 import BeautifulSoup
-import re
+from thefuzz import fuzz
+from .biedronka_leaflets import biedronka_ocr
+from .auchan import *
 
-__all__ = [
+
+__all__ = (
     "get_shops_data",
     "ProductObj"
-]
+)
 
-# pytesseract.pytesseract.tesseract_cmd = TESSERACT_DIR
-# StrOrBytesPath = Union[str | bytes | os.PathLike[str] | os.PathLike[bytes]]
+pytesseract.pytesseract.tesseract_cmd = TESSERACT_DIR
+StrOrBytesPath = Union[str | bytes | os.PathLike[str] | os.PathLike[bytes]]
 
-# def text_from_image(path:StrOrBytesPath):
-#     return pytesseract.image_to_string(Image.open(path), lang="pol")
-    # print(text_from_image('kakałko.jpg'))
+def find_best_product_match(target_product:str, ocr_results:list[str]) -> dict:
+    """
+    Szuka najlepiej pasującego produktu w liście wyników OCR.
+    
+    Args:
+        target_product (str): Czysta nazwa produktu z bazy (np. "Mleko Mlekovita")
+        ocr_results (list): Lista brudnych stringów z OCR.
+        
+    Returns:
+        dict: {"index": -1,
+                "ocr_text": "",
+                "score": 0}
+    """
+    best_match = {
+        "index": -1,
+        "ocr_text": "",
+        "score": 0
+    }
+
+    clean_target = target_product.lower()
+
+    for i, ocr_raw in enumerate(ocr_results):
+        if not ocr_raw: continue # Pomiń puste
+
+        # Używamy token_set_ratio - to jest "magiczna kula" na brudny OCR.
+        # Ignoruje powtórzenia słów, kolejność i dodatkowe śmieci w stringu.
+        score = fuzz.token_set_ratio(clean_target, ocr_raw)
+
+        # Opcjonalnie: partial_ratio jest dobry, gdy słowa są w idealnej kolejności, 
+        # ale w OCR często "Mlekovita" ląduje w linii pod "Mleko", więc token_set jest bezpieczniejszy.
+        
+        if score > best_match["score"]:
+            best_match["score"] = score
+            best_match["index"] = i
+            best_match["ocr_text"] = ocr_raw
+
+    return best_match
+
     
 class ProductObj(TypedDict):
     Name:str
@@ -28,15 +66,41 @@ class ProductObj(TypedDict):
     Is_Discounted:bool
     Discounted_Price:str|None
 
+biedronka_ids = {
+    "Łódź Pabianicka, 77": "1vky6jn8e",
+    "Łódź Krokusowa, 1": "1vky6jn8e",
+    "Łódź Politechniki, 60": "irthpct6j",
+    "Łódź Łazowskiego, 44": "irthpct6j",
+    "Łódź Dostojewskiego, 2": "irthpct6j",
+    "Łódź Kusocińskiego, 137": "irthpct6j"
+}
 
-def call_biedronka() -> list:
-    j = []
-    for i in range(15):
-        j += call_biedronka_page(i)
-    print(len(j))
-    return j
+lidl_ids = {
+    "kuchnia,-sprzatanie-i-organizacja": 10067764,
+    "warsztat-i-ogrod": 10067761,
+    "sport-i-rekreacja": 10067763,
+    "dom-i-wyposazenie-wnetrz": 10067762,
+    "moda-i-akcesoria": 10067765,
+    "produkty-niemowle-dziecko-i-zabawki": 10067767,
+    "zywnosc-i-napoje": 10068374,
+}
 
-def call_biedronka_page(page:int) -> list[dict]:
+
+def call_biedronka(shop_id=biedronka_ids["Łódź Politechniki, 60"]) -> list[ProductObj]:
+    products:list[ProductObj] = []
+    for i in range(15): # weird shit, 12 is enough, but maybe something changes
+        products += call_biedronka_page(i)
+    print(f"Biedronka products found: {len(products)}")
+    ocr_text_urls:list[tuple[str, str]] = biedronka_ocr(shop_id)
+    ocrs = [item[0] for item in ocr_text_urls]
+    for item in products:
+        result = find_best_product_match(item["Name"], ocrs)
+        if result["score"] > 85:
+            item["Is_Discounted"] = True
+            item["Details"] = ocr_text_urls[result["index"]][1]
+    return products
+
+def call_biedronka_page(page:int) -> list[ProductObj]:
     r = requests.get(f"https://zakupy.biedronka.pl/polecane/?page={page}")
     if not r.ok:
         raise RuntimeError(f"NOT OK \n {r.raw}")
@@ -67,43 +131,6 @@ def call_biedronka_page(page:int) -> list[dict]:
 
     # return json.dumps(products_list, ensure_ascii=False, indent=2)
     return products_list
-
-# def carrefour_init() -> tuple[requests.Session, dict]:
-#     session = requests.Session()
-
-#     headers = {
-#         "User-Agent":  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-#         "Accept": "application/json, text/plain, */*",
-#         "Referer": "https://www.carrefour.pl/",
-#         "Origin": "https://www.carrefour.pl",
-#         "x-requested-with": "XMLHttpRequest",
-#         "Accept-Language": "pl-PL,pl;q=0.9",
-#     }
-
-#     session.get("https://www.carrefour.pl/", headers=headers)
-
-#     return session, headers
-
-# def call_carrefour_page(page:int, session: requests.Session, headers:dict):
-#     link = f"https://www.carrefour.pl/web/catalog?sort=-popularity&available=true&categorySlugs=artykuly-spozywcze&resolveAttributes=false&resolveBrands=false&resolveProductLabels=false&resolveCreateDate=now-30d%2Fd&page={page}"
-#     print(link)
-#     r = session.get(link, headers=headers)
-#     if not r.ok:
-#         raise RuntimeError(f"NOT OK \n {r.status_code}")
-    
-#     products_list = []
-#     with open("a.json", "w") as fp:
-#         fp.write(r.json())
-
-lidl_ids = {
-    "kuchnia,-sprzatanie-i-organizacja": 10067764,
-    "warsztat-i-ogrod": 10067761,
-    "sport-i-rekreacja": 10067763,
-    "dom-i-wyposazenie-wnetrz": 10067762,
-    "moda-i-akcesoria": 10067765,
-    "produkty-niemowle-dziecko-i-zabawki": 10067767,
-    "zywnosc-i-napoje": 10068374,
-}
 
 
 def call_lidl_page(offset:int=0, category_id:int=10068374) -> dict:
@@ -152,7 +179,7 @@ def parse_lidl(resp):
             }
         except:
             print(json.dumps(i))
-            raise
+            raise Exception("Lidl failed")
         products_list.append(product)
     return products_list
 
@@ -172,69 +199,56 @@ def call_lidl():
     products = []
     for id in lidl_ids.values():
         l = call_lidl_category(id)
-        print(len(l))
+        print(f"Lidl category {id}: length:{len(l)}")
         products += l
     return products
 
-
-def auchan_init(session:requests.Session) -> tuple[list[str], requests.Session]:
-    headers = {
-    "accept":"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-    "accept-language":"pl,en-US;q=0.9,en;q=0.8",
-    "cache-control":"max-age=0",
-    "user-agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 OPR/124.0.0.0"
-    }
-    link = "https://zakupy.auchan.pl/categories"
-    session.headers=headers
-    r = session.get(link)
-
-    xsrf_token = session.cookies.get('XSRF-TOKEN')
-    if xsrf_token:
-        session.headers.update({'X-XSRF-TOKEN': xsrf_token})
-        print(f"Znaleziono i ustawiono X-XSRF-TOKEN: {xsrf_token[:10]}...")
-    else:
-        print("UWAGA: Nie znaleziono ciasteczka XSRF-TOKEN via cookies.get")
-
-    session.headers.update({
-        "Origin": "https://zakupy.auchan.pl",
-        "Referer": "https://zakupy.auchan.pl/categories",
-        "Content-Type": "application/json"
-    })
-
-    matches = re.findall(r'"products":\[".*?"\]', r.text)
-    if not matches:
-        print("Substring not found")
-        return ([], session)
+def call_auchan():
+    driver = init_driver()
     products = []
-    
-    for match in matches:
-        products_str = match[12:]  
-        products_str = products_str.replace('"', "") 
-        products_list = products_str.split(",")  
-        products.extend(products_list)
-    print(len(products))
-    print(products[0:3])
-    return products, session
+    try:
+        product_ids = auchan_get_ids(driver)
+        valid_headers = wait_for_headers(driver)
+        if product_ids and valid_headers:
+            details = call_auchan_api_secure(driver, product_ids, valid_headers)
+            for det in details:
+                p:ProductObj = {
+                    "Name": det['name'],
+                    "Price": det["price"]["amount"],
+                    "Details": det["promotions"][0].get('description', "") if len(det["promotions"]) > 0 else "",
+                    "Url": "",
+                    "Is_Discounted": len(det["promotions"]) > 0, # fail
+                    "Discounted_Price": det.get('promoPrice', {}).get('amount', None)
+                }
+                products.append(p)
+        else:
+            print("Nie udało się pobrać ID lub nagłówków.")
+            raise Exception("Nie udało się pobrać ID lub nagłówków.")
+    finally:
+        driver.quit()
+    return products
 
-def call_auchan_api(uuids:list[str], session:requests.Session):
-    for i in range(0, len(uuids), 24):
-        batch = uuids[i:i+24]
-        resp = session.put(
-            "https://zakupy.auchan.pl/api/webproductpagews/v6/products",
-            json=batch,
-        )
-        print(resp.json())
-    
-def get_shops_data():
-    b = call_biedronka()
+def retry_call(func:Callable, retries=5, delay=5):
+    for i in range(retries + 1):
+        try:
+            return func()
+        except Exception as e:
+            if i == retries:
+                raise
+            print(f"Call to {func.__name__} failed, retrying...")
+            time.sleep(delay)
+
+def get_shops_data(biedronka_address:str="")->dict:
+    b_id=biedronka_ids.get(biedronka_address, biedronka_ids["Łódź Politechniki, 60"])
+    a = retry_call(call_auchan)
+    b = call_biedronka(b_id)
     l = call_lidl()
     return {
+        "Auchan": a,
         "Biedronka": b,
-        "Lidl": l
-    }
+        "Lidl": l,
+    } 
 
 if __name__ == "__main__":
-    # session = requests.Session()
-    # call_auchan_api(*auchan_init(session))
-    with open("data.json", "w") as fp:
+    with open("out.json", "w") as fp:
         fp.write(json.dumps(get_shops_data()))
