@@ -1,16 +1,16 @@
 import requests
 import os
-import pytesseract
+import sys
 from PIL import Image
 from io import BytesIO
-from env import TESSERACT_DIR
+# from env import TESSERACT_DIR
 import re
 try:
-    from scrapers.biedronka_ocr import extract_text
+    from biedronka_ocr import extract_text
 except:
     from .biedronka_ocr import extract_text
 
-pytesseract.pytesseract.tesseract_cmd = TESSERACT_DIR
+# pytesseract.pytesseract.tesseract_cmd = TESSERACT_DIR
 
 API_URL = "https://leaflet-api.prod.biedronka.cloud/api/leaflets/{id}?ctx=web"
 
@@ -73,13 +73,19 @@ def biedronka_ocr(shop_id="irthpct6j") -> list[tuple[str, str]]:
 
     # print(f"Znaleziono {len(image_urls)} stron.")
     all_results = []
-
+    print(f"Found biedronka leaflets: {len(image_urls)}")
     for i, url in enumerate(image_urls):
+        sys.stdout.write('\r')
+        sys.stdout.write("Ocr leaflet %d" % (i+1))
+        sys.stdout.flush()
         img_path = download_image(url, i)
         text = ocr_image(img_path)
         all_results.append((text, url))
     return all_results
 
 if __name__ == "__main__":
+    import time
+    s = time.time()
     print(biedronka_ocr())
+    print(time.time() - s)
     # ocr_image("scrapers/mandar.png")

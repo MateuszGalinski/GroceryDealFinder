@@ -1,14 +1,16 @@
 import requests
-import pytesseract
-from env import TESSERACT_DIR
-from PIL import Image
+# from env import TESSERACT_DIR
 import os
 from typing import Union, TypedDict, Callable
 import json
 from bs4 import BeautifulSoup
 from thefuzz import fuzz
-from .biedronka_leaflets import biedronka_ocr
-from .auchan import *
+try:
+    from .biedronka_leaflets import biedronka_ocr
+    from .auchan import *
+except: 
+    from biedronka_leaflets import biedronka_ocr
+    from auchan import *
 
 
 __all__ = (
@@ -16,7 +18,7 @@ __all__ = (
     "ProductObj"
 )
 
-pytesseract.pytesseract.tesseract_cmd = TESSERACT_DIR
+# pytesseract.pytesseract.tesseract_cmd = TESSERACT_DIR
 StrOrBytesPath = Union[str | bytes | os.PathLike[str] | os.PathLike[bytes]]
 
 def find_best_product_match(target_product:str, ocr_results:list[str]) -> dict:
