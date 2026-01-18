@@ -1,20 +1,16 @@
 import requests
 import os
-import pytesseract
+import sys
 from PIL import Image
 from io import BytesIO
-from env import TESSERACT_DIR
 import re
 try:
     from scrapers.biedronka_ocr import extract_text
 except:
     from biedronka_ocr import extract_text
 
-pytesseract.pytesseract.tesseract_cmd = TESSERACT_DIR
 
 API_URL = "https://leaflet-api.prod.biedronka.cloud/api/leaflets/{id}?ctx=web"
-
-# ID gazetki z Twojego przykładu:
 
 OUTPUT_DIR = "biedronka_pages"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -55,15 +51,7 @@ def download_image(url, idx):
     path = os.path.join(OUTPUT_DIR, f"page_{idx}.png")
     img.save(path)
     return path
-
-def ocr_image(path:str):
-    # print(f"OCR: {path}")
-    # text = pytesseract.image_to_string(Image.open(path), lang="pol")
-    text = extract_text(path)
-    parts_path = path.split(".")
-    # with open(parts_path[0] + ".txt", "w", encoding="utf-8") as fp:
-    #     fp.write(text)
-    return text
+    
 
 def biedronka_ocr(shop_id="irthpct6j") -> list[tuple[str, str]]:
     """out: [(text, url)]"""
@@ -75,11 +63,13 @@ def biedronka_ocr(shop_id="irthpct6j") -> list[tuple[str, str]]:
     all_results = []
 
     for i, url in enumerate(image_urls):
+        sys.stdout.write('\r')
+        sys.stdout.write("Leaflet %d" % (i+1))
+        sys.stdout.flush()
         img_path = download_image(url, i)
-        text = ocr_image(img_path)
+        text = extract_text(img_path)
         all_results.append((text, url))
     return all_results
 
 if __name__ == "__main__":
     print(biedronka_ocr())
-    # ocr_image("scrapers/mandar.png")

@@ -82,8 +82,8 @@ def extract_text(image_path) -> str:
     # cv2.imwrite("debug_img.jpg", debug_img)
     return "\n".join(found_items).strip()
 
-from env import TESSERACT_DIR
-pytesseract.pytesseract.tesseract_cmd = TESSERACT_DIR
+# from env import TESSERACT_DIR
+# pytesseract.pytesseract.tesseract_cmd = TESSERACT_DIR
     
 if __name__ == "__main__":
     extract_text("scrapers/biedronka_pages/page_0.png")
