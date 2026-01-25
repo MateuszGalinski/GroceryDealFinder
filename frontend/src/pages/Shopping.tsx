@@ -1,13 +1,15 @@
 import {
   Box,
   Button,
-  CircularProgress,
+  Divider,
   TextField,
   Typography,
 } from "@mui/material";
 import { useState } from "react";
 import type { ShoppingItem, ShoppingListResponse } from "../utils/types";
 import ProductCard from "../components/ProductCard";
+import axiosClient from "../utils/axiosClient";
+import Loading from "../components/Loading";
 
 export default function Shopping() {
   const [items, setItems] = useState<ShoppingItem[]>([{ id: 0, text: "" }]);
@@ -40,55 +42,17 @@ export default function Shopping() {
       return;
     }
 
-    const formattedItems = nonEmptyItems.map((item) => `'${item}'`).join(", ");
     const payload = {
-      products_names: `[${formattedItems}]`,
+      products: nonEmptyItems,
     };
 
     setLoading(true);
     setResponseData(null);
 
     try {
-      // Dummy response for testing
-      const dummyResponse: ShoppingListResponse = {
-        shop: "Walmart",
-        products: [
-          {
-            id: 1,
-            url: "https://example.com/product/milk",
-            name: "Organic Milk 1L",
-            price: 4.99,
-            is_discounted: true,
-            discounted_price: 3.99,
-          },
-          {
-            id: 2,
-            url: "https://example.com/product/bread",
-            name: "Whole Wheat Bread",
-            price: 2.49,
-            is_discounted: false,
-          },
-          {
-            id: 3,
-            url: "https://example.com/product/eggs",
-            name: "Free Range Eggs (12 pack)",
-            price: 5.99,
-            is_discounted: true,
-            discounted_price: 4.49,
-          },
-        ],
-      };
-
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      console.log("Payload sent:", payload);
-      console.log("Response received:", dummyResponse);
-      setResponseData(dummyResponse);
-
-      // When ready to use real API, uncomment this:
-      // const response = await axiosClient.post("/list", payload);
-      // setResponseData(response.data);
+      const response = await axiosClient.post("/generate-list/", payload);
+      console.log(response.data);
+      setResponseData(response.data);
     } catch (error) {
       console.error("Error submitting shopping list:", error);
       alert("Failed to submit shopping list");
@@ -128,21 +92,89 @@ export default function Shopping() {
       </Button>
 
       {loading && (
-        <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
-          <CircularProgress />
+        <Box sx={{ mt: 4, minHeight: "200px" }}>
+          <Loading />
         </Box>
       )}
 
       {responseData && !loading && (
         <Box sx={{ mt: 4 }}>
           <Typography variant="h5" gutterBottom>
-            Results from {responseData.shop}
+            Comparison Results
           </Typography>
-          <Box sx={{ mt: 2 }}>
-            {responseData.products.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Compared {responseData.shops_compared} shop
+            {responseData.shops_compared !== 1 ? "s" : ""}
+          </Typography>
+
+          {responseData.cheapest ? (
+            <>
+              <Box
+                sx={{
+                  p: 3,
+                  bgcolor: "success.light",
+                  borderRadius: 2,
+                  mb: 4,
+                }}
+              >
+                <Typography variant="h6" gutterBottom>
+                  Best Deal: {responseData.cheapest.shop}
+                </Typography>
+                <Typography variant="h4" color="success.dark">
+                  Total: {responseData.cheapest.total.toFixed(2)} zł
+                </Typography>
+              </Box>
+
+              <Typography variant="h6" sx={{ mb: 2 }}>
+                Products from {responseData.cheapest.shop}
+              </Typography>
+              <Box sx={{ mb: 4 }}>
+                {responseData.cheapest.products.map((product, index) => (
+                  <ProductCard key={index} product={product} />
+                ))}
+              </Box>
+
+              {Object.keys(responseData.complete_shops).length > 1 && (
+                <>
+                  <Divider sx={{ my: 4 }} />
+                  <Typography variant="h6" sx={{ mb: 3 }}>
+                    All Shop Comparisons
+                  </Typography>
+                  {Object.entries(responseData.complete_shops).map(
+                    ([shopName, shopData]) => (
+                      <Box key={shopName} sx={{ mb: 4 }}>
+                        <Box
+                          sx={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            mb: 2,
+                          }}
+                        >
+                          <Typography variant="h6">{shopName}</Typography>
+                          <Typography variant="h6" color="primary">
+                            Total: {shopData.total.toFixed(2)} zł
+                          </Typography>
+                        </Box>
+                        {shopData.products.map((product, index) => (
+                          <ProductCard key={index} product={product} />
+                        ))}
+                      </Box>
+                    ),
+                  )}
+                </>
+              )}
+            </>
+          ) : (
+            <Box sx={{ textAlign: "center", py: 4 }}>
+              <Typography variant="h6" color="text.secondary">
+                No products found for your shopping list.
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                Try adjusting your search terms or check your glossary settings.
+              </Typography>
+            </Box>
+          )}
         </Box>
       )}
     </Box>
