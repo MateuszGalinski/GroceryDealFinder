@@ -1,3 +1,5 @@
 .venv/
 env.py
 *__pycache__*
+*/biedronka_pages/
+biedronka_pages/

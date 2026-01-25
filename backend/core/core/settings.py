@@ -94,7 +94,7 @@ CELERY_BEAT_SCHEDULE = {
     # },
     'update_discount_database': {
         'task': 'app.tasks.update_discount_database',
-        'schedule': 60 * 5 # 5 minutes
+        'schedule': 60 * 15 # in seconds
     }
 }
 

@@ -2,7 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 
 class Product(models.Model):
-    url = models.URLField()
+    url = models.URLField(blank=True, null=True)
     name = models.CharField(max_length = 300)
     price = models.CharField(max_length = 200)
     details = models.TextField(null = True, blank = True)
