@@ -4,15 +4,28 @@ export interface ShoppingItem {
 }
 
 export interface Product {
-  id: number;
-  url: string;
+  original_term: string;
+  searched_term: string;
   name: string;
   price: number;
   is_discounted: boolean;
-  discounted_price?: number;
+  url: string;
+}
+
+export interface ShopResult {
+  products: Product[];
+  total: number;
+}
+
+export interface CheapestResult {
+  shop: string;
+  total: number;
+  products: Product[];
 }
 
 export interface ShoppingListResponse {
-  shop: string;
-  products: Product[];
+  shopping_list: string[];
+  complete_shops: Record<string, ShopResult>;
+  cheapest: CheapestResult | null;
+  shops_compared: number;
 }

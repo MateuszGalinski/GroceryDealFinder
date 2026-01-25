@@ -1,58 +1,71 @@
-import { Box, Button, IconButton, TextField, Typography } from "@mui/material";
+import { Box, Button, CircularProgress, IconButton, TextField, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
-// import axiosClient from "../utils/axiosClient";
+import axiosClient from "../utils/axiosClient";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import queryClient from "../utils/queryClient";
+import Loading from "../components/Loading";
 
 export default function UserProfile() {
   const navigate = useNavigate();
   const [glossary, setGlossary] = useState<Record<string, string>>({});
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const debounceTimerRef = useRef<number | null>(null);
+  const accessToken = localStorage.getItem("accessToken");
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["glossary", accessToken],
+    queryFn: async () => {
+      const response = await axiosClient.get("/glossary/");
+      return response.data.translations || {};
+    },
+  });
 
   useEffect(() => {
-    // Fetch glossary from API
-    const fetchGlossary = async () => {
-      // const response = await axiosClient.get('/glossary');
-      // setGlossary(response.data.glossary);
+    if (data) {
+      setGlossary(data);
+    }
+  }, [data]);
 
-      // Dummy API call - mock data
-      const mockData = {
-        glossary: {
-          milk: "Organic Whole Milk",
-          bread: "Whole Wheat Bread",
-          eggs: "Free Range Eggs",
-        },
-      };
-      setGlossary(mockData.glossary);
+  const updateMutation = useMutation({
+    mutationFn: async (translations: Record<string, string>) => {
+      const response = await axiosClient.put("/glossary/", { translations });
+      return response.data;
+    },
+    onSuccess: () => {
+      console.log("Glossary updated successfully");
+      setHasUnsavedChanges(false);
+      queryClient.invalidateQueries({ queryKey: ["glossary"] });
+    },
+    onError: (error) => {
+      console.error("Failed to update glossary:", error);
+    },
+  });
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
     };
-
-    fetchGlossary();
   }, []);
 
-  // Debounced PUT request when glossary changes
-  useEffect(() => {
-    // Skip on initial mount (empty glossary)
-    if (Object.keys(glossary).length === 0) return;
+  const debouncedUpdate = (updatedGlossary: Record<string, string>) => {
+    setHasUnsavedChanges(true);
 
-    const timeoutId = setTimeout(async () => {
-      // await axiosClient.put('/glossary', glossary);
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
 
-      // Dummy PUT request
-      console.log('PUT /glossary', glossary);
-    }, 2000); // 2 seconds delay
+    debounceTimerRef.current = setTimeout(() => {
+      updateMutation.mutate(updatedGlossary);
+    }, 2000);
+  };
 
-    return () => clearTimeout(timeoutId);
-  }, [glossary]);
-
-  const handleLogout = () => {
-    // await axiosClient.post('/logout');
-    // localStorage.removeItem("accessToken");
-
-    // Dummy logout - remove credentials from localStorage
-    localStorage.removeItem("username");
-    localStorage.removeItem("password");
-
-    // Redirect to home
+  const handleLogout = async () => {
+    localStorage.clear();
     navigate("/sign-in");
   };
 
@@ -67,17 +80,29 @@ export default function UserProfile() {
     }
     newGlossary[newKey] = value;
     setGlossary(newGlossary);
+    debouncedUpdate(newGlossary);
   };
 
   const handleAddEntry = () => {
-    setGlossary({ ...glossary, "": "" });
+    const newGlossary = { ...glossary, "": "" };
+    setGlossary(newGlossary);
+    debouncedUpdate(newGlossary);
   };
 
   const handleRemoveEntry = (key: string) => {
     const newGlossary = { ...glossary };
     delete newGlossary[key];
     setGlossary(newGlossary);
+    debouncedUpdate(newGlossary);
   };
+
+  if (isLoading) {
+    return (
+      <Box sx={{ p: 3, minHeight: "200px" }}>
+        <Loading />
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ p: 3 }}>
@@ -90,9 +115,29 @@ export default function UserProfile() {
       </Button>
 
       <Box sx={{ mb: 4, mt: 3 }}>
-        <Typography variant="h6" sx={{ mb: 2 }}>
-          Product Glossary
-        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+          <Typography variant="h6">
+            Product Glossary
+          </Typography>
+          {updateMutation.isPending ? (
+            <Box sx={{ display: "flex", alignItems: "center", ml: 2 }}>
+              <CircularProgress size={16} sx={{ mr: 1 }} />
+              <Typography
+                component="span"
+                sx={{ fontSize: "0.875rem", color: "text.secondary" }}
+              >
+                Saving...
+              </Typography>
+            </Box>
+          ) : hasUnsavedChanges ? (
+            <Typography
+              component="span"
+              sx={{ ml: 2, fontSize: "0.875rem", color: "warning.main" }}
+            >
+              Unsaved changes
+            </Typography>
+          ) : null}
+        </Box>
 
         {Object.entries(glossary).map(([key, value], index) => (
           <Box

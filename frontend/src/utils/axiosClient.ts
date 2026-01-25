@@ -18,12 +18,15 @@ axiosClient.interceptors.request.use(
   },
   (error) => {
     return Promise.reject(error);
-  }
+  },
 );
 
 const refreshAccessToken = async () => {
   try {
-    const response = await axiosClient.post("/auth/token/refresh/");
+    const requestBody = {
+      refresh: localStorage.getItem("refreshToken"),
+    };
+    const response = await axiosClient.post("/token/refresh/", requestBody);
     const accessToken = response.data["access"];
     localStorage.setItem("accessToken", accessToken);
     return accessToken;
@@ -39,7 +42,11 @@ axiosClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (originalRequest.url.includes("auth/")) {
+    if (
+      originalRequest.url.includes("login/") ||
+      originalRequest.url.includes("register/") ||
+      originalRequest.url.includes("token/")
+    ) {
       return Promise.reject(error);
     }
 
@@ -60,7 +67,7 @@ axiosClient.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 export default axiosClient;

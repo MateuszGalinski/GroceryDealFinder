@@ -83,10 +83,7 @@ export default function Register() {
   const [registerError, setRegisterError] = useState(false);
   const navigate = useNavigate();
 
-  //   if (localStorage.getItem("accessToken")) {
-  //     return <Navigate to={"/"} />;
-  //   }
-  if (localStorage.getItem("username") && localStorage.getItem("password")) {
+  if (localStorage.getItem("accessToken")) {
     return <Navigate to={"/"} />;
   }
 
@@ -110,32 +107,16 @@ export default function Register() {
     try {
       const response = await axiosClient.post("/register/", requestBody);
 
-      const accessToken: string = response.data["access"];
-      const username: string = response.data["user"]["username"];
+      const accessToken: string = response.data["tokens"]["access"];
+      const refreshToken: string = response.data["tokens"]["refresh"];
 
       localStorage.setItem("accessToken", accessToken);
-      localStorage.setItem("username", username);
+      localStorage.setItem("refreshToken", refreshToken);
       navigate("/");
     } catch (err) {
       setLoading(false);
       setRegisterError(true);
     }
-  };
-
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (usernameError || passwordError || confirmPasswordError) {
-      return;
-    }
-
-    const data = new FormData(event.currentTarget);
-    const username = data.get("username") as string;
-    const password = data.get("password") as string;
-
-    localStorage.setItem("username", username);
-    localStorage.setItem("password", password);
-    navigate("/");
   };
 
   const validateInputs = () => {
@@ -199,7 +180,7 @@ export default function Register() {
           </Typography>
           <Box
             component="form"
-            onSubmit={handleSubmit}
+            onSubmit={handleSubmitWithAPI}
             noValidate
             sx={{
               display: "flex",
