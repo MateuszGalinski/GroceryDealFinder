@@ -243,6 +243,7 @@ def retry_call(func:Callable, retries=5, delay=5):
 def get_shops_data(biedronka_address:str="")->dict:
     b_id=biedronka_ids.get(biedronka_address, biedronka_ids["Łódź Politechniki, 60"])
     a = retry_call(call_auchan)
+    # print(a)
     b = call_biedronka(b_id)
     l = call_lidl()
     return {

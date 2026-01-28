@@ -25,7 +25,7 @@ def update_discount_database():
             }
             
             try:
-                product = Product.objects.get(url=p['Url'])
+                product = Product.objects.get(url=p['Name'])
                 serializer = ProductSerializer(product, data=data)
             except Product.DoesNotExist:
                 serializer = ProductSerializer(data=data)

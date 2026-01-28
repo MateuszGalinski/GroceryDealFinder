@@ -11,7 +11,18 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+from corsheaders.defaults import default_headers
+import os
+from dotenv import load_dotenv
+from urllib.parse import urlparse
 
+load_dotenv()
+
+BACKEND_URL = os.getenv("BACKEND_URL")
+FRONTEND_URL = os.getenv("FRONTEND_URL")
+
+def domain_from_url(url):
+    return urlparse(url).netloc if url else None
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -26,7 +37,11 @@ SECRET_KEY = 'django-insecure-%wcoi18jm#&^s_+&&3qj-^!-zs6t+-vq&33nuaz&e)i1_btj_p
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    '127.0.0.1',
+    'localhost',
+    '.ngrok-free.app',
+]
 
 
 # Application definition
@@ -59,6 +74,21 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
 ]
+
+if FRONTEND_URL:
+    CORS_ALLOWED_ORIGINS.append(FRONTEND_URL)
+
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "ngrok-skip-browser-warning",
+]
+
+CSRF_TRUSTED_ORIGINS = []
+
+if FRONTEND_URL:
+    CSRF_TRUSTED_ORIGINS.append(FRONTEND_URL)
+
+if BACKEND_URL:
+    CSRF_TRUSTED_ORIGINS.append(BACKEND_URL)
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -102,7 +132,7 @@ CELERY_BEAT_SCHEDULE = {
     # },
     'update_discount_database': {
         'task': 'app.tasks.update_discount_database',
-        'schedule': 60 * 15 # in seconds
+        'schedule': 60 * 60 # in seconds
     }
 }
 

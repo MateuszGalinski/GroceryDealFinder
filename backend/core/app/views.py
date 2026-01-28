@@ -229,6 +229,9 @@ def get_token_for_user(user):
 
 
 class RegisterView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
     @extend_schema(
         summary="Register a new user",
         request=RegisterSerializer,
